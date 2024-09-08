@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Schedule Gantt Chart</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    #project-schedule {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+  </style>
+</head>
+<body>
+  <div id="project-schedule">
+    <h2>Project Schedule with Gantt Chart</h2>
+    <p>Filter by Assigned Person: 
+      <select id="assignedFilter">
+        <option value="">All</option>
+      </select>
+    </p>
+    
+    <table id="task-table">
+      <thead>
+        <tr>
+          <th>Task Number</th>
+          <th>Name</th>
+          <th>Assigned To</th>
+          <th>Start</th>
+          <th>Finish</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    
+    <div id="gantt-chart"></div>
+  </div>
+
+  <script>
+    const excelUrl = "https://inflammatix.sharepoint.com/:x:/r/sites/PowerBIDev/Shared%20Documents/Source%20documents%20for%20site/TriVerity%20Top%20Level.xlsx?d=wff5213336ce64db5972403f4d03fa707&csf=1&web=1&e=BdEZIK";
+    const headersRow = 9; // Data starts at row 9
+
+    // Load Google Charts
+    google.charts.load('current', { 'packages': ['gantt'] });
+    
+    function fetchExcel() {
+      fetch(excelUrl)
+        .then(response => response.arrayBuffer())
+        .then(data => {
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(sheet, { header: 1, range: headersRow - 1 });
+          
+          populateTable(json);
+          populateFilter(json);
+          drawGanttChart(json);
+        });
+    }
+    
+    function populateTable(data) {
+      const tableBody = document.querySelector("#task-table tbody");
+      tableBody.innerHTML = "";
+      
+      data.forEach(row => {
+        if (row.length < 6) return; // Skip if not enough columns
+        const [taskNumber, , name, assignedTo, start, finish] = row;
+        
+        const rowElement = `<tr>
+          <td>${taskNumber}</td>
+          <td>${name}</td>
+          <td>${assignedTo}</td>
+          <td>${start}</td>
+          <td>${finish}</td>
+        </tr>`;
+        
+        tableBody.innerHTML += rowElement;
+      });
+    }
+    
+    function populateFilter(data) {
+      const assignedFilter = document.getElementById("assignedFilter");
+      const assignedToList = [...new Set(data.map(row => row[3]).filter(Boolean))]; // Unique assigned to values
+      
+      assignedToList.forEach(assignedTo => {
+        const option = `<option value="${assignedTo}">${assignedTo}</option>`;
+        assignedFilter.innerHTML += option;
+      });
+      
+      assignedFilter.addEventListener("change", () => filterTasks(assignedFilter.value, data));
+    }
+    
+    function filterTasks(assignedTo, data) {
+      const tableBody = document.querySelector("#task-table tbody");
+      tableBody.innerHTML = "";
+      
+      data.forEach(row => {
+        if (row[3] === assignedTo || assignedTo === "") {
+          const [taskNumber, , name, assignedTo, start, finish] = row;
+          const rowElement = `<tr>
+            <td>${taskNumber}</td>
+            <td>${name}</td>
+            <td>${assignedTo}</td>
+            <td>${start}</td>
+            <td>${finish}</td>
+          </tr>`;
+          
+          tableBody.innerHTML += rowElement;
+        }
+      });
+    }
+    
+    function drawGanttChart(data) {
+      const chartData = new google.visualization.DataTable();
+      chartData.addColumn('string', 'Task ID');
+      chartData.addColumn('string', 'Task Name');
+      chartData.addColumn('string', 'Assigned To');
+      chartData.addColumn('date', 'Start Date');
+      chartData.addColumn('date', 'End Date');
+      chartData.addColumn('number', 'Duration');
+      chartData.addColumn('number', 'Percent Complete');
+      chartData.addColumn('string', 'Dependencies');
+
+      data.forEach(row => {
+        if (row.length < 6) return;
+        const [taskNumber, , name, assignedTo, start, finish] = row;
+        
+        chartData.addRow([
+          taskNumber,
+          name,
+          assignedTo,
+          new Date(start),
+          new Date(finish),
+          null,
+          0, // Percent Complete
+          null // Dependencies
+        ]);
+      });
+      
+      const options = {
+        height: 400,
+        gantt: {
+          trackHeight: 30
+        }
+      };
+
+      const chart = new google.visualization.Gantt(document.getElementById('gantt-chart'));
+      chart.draw(chartData, options);
+    }
+    
+    // Fetch and display data
+    fetchExcel();
+  </script>
+</body>
+</html>
